@@ -1,5 +1,9 @@
 From iris.proofmode Require Import base proofmode.
 From iris.bi Require Export weakestpre fixpoint big_op.
+From Coquelicot Require Import Series Lim_seq Rbar.
+From stdpp Require Export countable.
+From clutch.prelude Require Import base Coquelicot_ext.
+
 From iris.base_logic.lib Require Import ghost_map invariants fancy_updates.
 From iris.algebra Require Import excl.
 From iris.prelude Require Import options.
@@ -11,8 +15,9 @@ From clutch.ub_logic Require Import error_credits ub_weakestpre primitive_laws.
 From clutch.prob Require Import distribution.
 Import uPred.
 
+
 Section adequacy.
-  Context `{!clutchGS Σ}.
+  Context `{!ub_clutchGS Σ}.
 
 
   Lemma ub_lift_dbind' `{Countable A, Countable A'}
@@ -186,7 +191,7 @@ Global Instance subG_clutchGPreS {Σ} : subG clutchΣ Σ → clutchGpreS Σ.
 Proof. solve_inG. Qed.
 
 Theorem wp_union_bound Σ `{clutchGpreS Σ} (e : expr) (σ : state) n (ε : nonnegreal) φ :
-  (∀ `{clutchGS Σ}, ⊢ € ε -∗ WP e {{ v, ⌜φ v⌝ }}) →
+  (∀ `{ub_clutchGS Σ}, ⊢ € ε -∗ WP e {{ v, ⌜φ v⌝ }}) →
   ub_lift (exec_val n (e, σ)) φ ε.
 Proof.
   intros Hwp.
@@ -213,7 +218,7 @@ Proof.
 Qed.
 
 Theorem wp_union_bound_lim Σ `{clutchGpreS Σ} (e : expr) (σ : state) (ε : nonnegreal) φ :
-  (∀ `{clutchGS Σ}, ⊢ € ε -∗ WP e {{ v, ⌜φ v⌝ }}) →
+  (∀ `{ub_clutchGS Σ}, ⊢ € ε -∗ WP e {{ v, ⌜φ v⌝ }}) →
   ub_lift (lim_exec_val (e, σ)) φ ε.
 Proof.
   intros.
@@ -222,3 +227,95 @@ Proof.
   apply (wp_union_bound Σ); auto.
 Qed.
 
+
+(*epsilon limit*)
+Lemma ub_lift_epsilon_limit `{Eq: EqDecision A} `{HC:Countable A} (μ : distr A) f : (forall ε, ε>0 -> ub_lift μ f ε) -> ub_lift μ f 0.
+Proof.
+  intros H.
+  assert (forall seq,(∀ n, 0 <= seq n <=1) -> (∀ n, ub_lift μ f (1-seq n))->ub_lift μ f (1-Sup_seq seq)) as H_limit.
+  { clear H.
+    rewrite /ub_lift.
+    intros.
+    rewrite Rcomplements.Rle_minus_r.
+    rewrite Rplus_comm.
+    rewrite -Rcomplements.Rle_minus_r.
+    rewrite <- rbar_le_rle.
+    rewrite rbar_finite_real_eq.
+    + apply upper_bound_ge_sup.
+      intros.
+      pose proof (H0 n P H1). rewrite rbar_le_rle. lra.
+    + apply (is_finite_bounded 0 1).
+      -- eapply (Sup_seq_minor_le _ _ 0). destruct (H 0%nat). apply H2. 
+      -- apply upper_bound_ge_sup. intros n. destruct (H n). apply H3. 
+  }
+  replace 0%R with (1-Sup_seq (λ x,(λ n,1-1/(S n)) x)).
+  - apply H_limit.
+    { intros; split.
+      -- apply Rle_0_le_minus. rewrite <-Rcomplements.Rdiv_le_1.
+         ++ rewrite S_INR. rewrite <- Rcomplements.Rle_minus_l.
+            replace (_-_) with 0; try lra.
+            apply pos_INR.
+         ++ apply Rcomplements.Rlt_nat. eauto. 
+      -- assert (1/S n>=0); try lra.
+         apply Rle_ge.
+         apply Rcomplements.Rdiv_le_0_compat; try lra.
+         apply Rcomplements.Rlt_nat. eauto.
+    }
+    intros. apply H.
+    apply Rgt_minus.
+    apply Rlt_gt.
+    rewrite Rcomplements.Rlt_minus_l.
+    apply Rlt_gt.
+    apply Rminus_gt_0_lt.
+    replace (_+_-_) with (1/S n); try lra.
+    apply Rdiv_lt_0_compat; try lra.
+    rewrite S_INR. pose proof pos_INR.
+    apply Rplus_le_lt_0_compat; try lra. done.
+  - apply Rminus_diag_eq.
+    apply eq_rbar_finite.
+    admit. 
+Admitted.
+  
+
+Lemma exec_ub_epsilon_limit `{ub_clutchGS Σ} (e : expr) σ Z:
+   (∀ ε : nonnegreal, ⌜ε > 0⌝ -∗ exec_ub e σ Z ε) -∗ exec_ub e σ Z nnreal_zero.
+Proof.
+  iLöb as "IH" forall (e σ).
+  iIntros "H".
+  rewrite exec_ub_unfold.
+  (* iLöb does not work*)
+  Admitted. 
+
+  
+
+Lemma wp_epsilon_limit `{ub_clutchGS Σ} (e : expr) φ:
+   (∀ ε : nonnegreal, ⌜0<ε⌝ -∗ € ε -∗ WP e {{ v, ⌜φ v⌝}}) -∗
+  WP e {{v, ⌜φ v⌝}}.
+Proof.
+  iStartProof.
+  iLöb as "IH" forall (e).
+  iIntros "H".
+  iEval (rewrite ub_wp_unfold /ub_wp_pre).
+  case_match.
+  - iAssert (∀ ε : nonnegreal, ⌜0 < ε⌝ -∗ € ε ={⊤}=∗ ⌜φ v⌝)%I with "[H]" as "H".
+    { iIntros (ε) "% Hε".
+      iPoseProof ("H" $! ε H1 with "[$Hε]") as "H".
+      iEval (rewrite ub_wp_unfold /ub_wp_pre) in "H".
+      by iEval (rewrite H0) in "H".
+    }
+    admit.
+  - iAssert (∀ ε : nonnegreal, ⌜0 < ε⌝ -∗ € ε -∗
+                              ∀ (σ1 : language.state prob_lang) (ε : nonnegreal),
+              state_interp σ1 ∗ err_interp ε ={⊤,∅}=∗
+              ⌜reducible e σ1⌝ ∗
+              exec_ub e σ1
+                (λ (ε2 : nonnegreal) '(e2, σ2),
+                   ▷ (|={∅,⊤}=> state_interp σ2 ∗ err_interp ε2 ∗ WP e2 {{ v, ⌜φ v⌝ }})) ε)%I with "[H]"as "H".
+    { iIntros (ε) "% Hε".
+      iPoseProof ("H" $! ε H1 with "[$Hε]") as "H".
+      iEval (rewrite ub_wp_unfold /ub_wp_pre) in "H".
+      by rewrite H0.
+    }
+    iIntros (σ ε) "[Hs Hε]".
+    admit. 
+Admitted. 

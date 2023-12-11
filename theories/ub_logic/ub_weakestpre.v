@@ -7,6 +7,7 @@ From iris.prelude Require Import options.
 From clutch.prelude Require Import stdpp_ext NNRbar.
 From clutch.prob Require Export couplings distribution union_bounds.
 From clutch.program_logic Require Export exec language.
+From Coquelicot Require Import Rcomplements Rbar Lim_seq.
 
 Import uPred.
 
@@ -222,7 +223,7 @@ Section exec_ub.
   Proof.
     iApply exec_ub_strong_mono; [iPureIntro; lra | ].
     iIntros (???) "[[% ?] ?]". iSplit; [|done]. by iExists _.
-  Qed.
+xo  Qed.
 
   Lemma exec_ub_bind K `{!LanguageCtx K} e1 σ1 (Z : nonnegreal -> cfg Λ → iProp Σ) (ε : nonnegreal) :
     to_val e1 = None →
@@ -437,7 +438,7 @@ Section exec_ub.
     iPureIntro.
     simpl. lra.
   Qed.
-
+ 
 (*
   Lemma exec_ub_reducible e σ Z1 Z2 ε1 ε2 :
     (exec_ub e σ Z1 ε1)  ={∅}=∗ ⌜irreducible e σ⌝ -∗ (exec_ub e σ Z2 ε2).
