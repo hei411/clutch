@@ -316,22 +316,79 @@ Proof.
                   exfalso. rewrite -H3 in H1. lra.
                 }
                 2: { rewrite Z.compare_gt_iff in H3. exfalso.
-                     assert (IZR (up r) >=0) by lra.
+                     assert (IZR (up r) >= 0) by lra.
                      apply IZR_lt in H3. lra. 
                 }
                 lra.
-Qed.             
+Qed.
 
-Lemma exec_ub_epsilon_limit `{ub_clutchGS Σ} (e : expr) σ Z:
-   (∀ ε : nonnegreal, ⌜ε > 0⌝ -∗ exec_ub e σ Z ε) -∗ exec_ub e σ Z nnreal_zero.
+
+Lemma exec_ub_epsilon_limit `{ub_clutchGS Σ} (e : expr) σ Z (ε':nonnegreal):
+   (∀ ε : nonnegreal, ⌜ε > ε'⌝ -∗ exec_ub e σ Z ε) -∗ exec_ub e σ Z ε'.
 Proof.
-  iLöb as "IH" forall (e σ).
+  rewrite /exec_ub /exec_ub'.
   iIntros "H".
-  rewrite exec_ub_unfold.
+  iApply least_fixpoint_unfold_2; [apply exec_coupl_pre_mono|].
   (* iLöb does not work*)
-  Admitted. 
+Abort.
 
+
+
+Section Experiment_exec_ub_no_chain.
+
+  Definition exec_ub_no_chain_case_1 `{!ub_clutchGS Σ} (Z : nonnegreal -> cfg -> iProp Σ) ε e σ :=
+    (∃ R (ε1 ε2 : nonnegreal), ⌜ (ε1 + ε2 <= ε)%R ⌝ ∗ ⌜ub_lift (prim_step e σ) R ε1⌝ ∗
+                                    ∀ ρ2, ⌜ R ρ2 ⌝ ={∅}=∗ Z ε2 ρ2 )%I.
+    
+  Definition exec_ub_no_chain_case_2 `{!ub_clutchGS Σ} (Z : nonnegreal -> cfg -> iProp Σ) ε e σ :=
+    (∃ R (ε1 : nonnegreal) (ε2 : cfg -> nonnegreal),
+        ⌜ exists r, forall ρ, (ε2 ρ <= r)%R ⌝ ∗
+                    ⌜ (ε1 + SeriesC (λ ρ, (prim_step e σ ρ) * ε2(ρ)) <= ε)%R ⌝ ∗
+                    ⌜ub_lift (prim_step e σ) R ε1⌝ ∗ ∀ ρ2, ⌜ R ρ2 ⌝ ={∅}=∗ Z (ε2 ρ2) ρ2 )%I.
   
+  Definition exec_ub_no_chain `{!ub_clutchGS Σ} (Z : nonnegreal -> cfg → iProp Σ) :=
+    (λ (x : nonnegreal * cfg),
+       let '(ε, (e1, σ1)) := x in
+       (* [prim_step] *)
+       exec_ub_no_chain_case_1 Z ε e1 σ1 ∨
+         exec_ub_no_chain_case_2 Z ε e1 σ1)%I.
+
+  Lemma exec_ub_no_chain_grading_mono `{!ub_clutchGS Σ} (ε ε' : nonnegreal) Z c:
+    ⌜(ε <= ε')%R⌝ -∗ exec_ub_no_chain Z (ε, c) -∗ exec_ub_no_chain Z (ε', c).
+  Proof.
+    iIntros "%Hleq H_ub".
+    rewrite /exec_ub_no_chain.
+    destruct c as [e σ].
+    iDestruct "H_ub" as "[H_ub|H_ub]".
+    - iLeft.
+      iDestruct "H_ub" as "(%R & %ε1 & %ε2 & %Hε & %Hub & H)".
+      iExists R, ε1, ε2.
+      iSplitR.
+      { iPureIntro; lra. }
+      iSplitR.
+      { iPureIntro; by eapply UB_mon_grading. }
+      iFrame.
+    - iRight.
+      iDestruct "H_ub" as "(%R & %ε1 & %ε2 & [%r %Hr] & %H & %Hub & ?)".
+      iExists R, ε1, ε2.
+      iFrame.
+      iSplit; iPureIntro.
+      + eauto.
+      + split; [lra|done].
+  Qed.
+
+  Definition exec_ub_no_chain_split `{!ub_clutchGS Σ} (Z : nonnegreal -> cfg -> iProp Σ)(ε' : nonnegreal) c:
+   ⊢ ((∀ ε : nonnegreal, ⌜ε'<ε⌝ -∗ exec_ub_no_chain Z (ε, c)) -∗
+    let '(e1, σ1) := c in
+    (∀ ε : nonnegreal, ⌜ε'<ε⌝ -∗ exec_ub_no_chain_case_1 Z ε e1 σ1) ∨
+      (∀ ε : nonnegreal, ⌜ε'<ε⌝ -∗ exec_ub_no_chain_case_2 Z ε e1 σ1))%I.
+  Proof.
+    iStartProof.
+    iIntros "H".
+    destruct c as [e σ].
+    Abort.
+    
+End Experiment_exec_ub_no_chain.y
 
 Lemma wp_epsilon_limit `{ub_clutchGS Σ} (e : expr) φ:
    (∀ ε : nonnegreal, ⌜0<ε⌝ -∗ € ε -∗ WP e {{ v, ⌜φ v⌝}}) -∗
