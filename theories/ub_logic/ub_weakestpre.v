@@ -638,15 +638,17 @@ Section exec_ub_limit.
   Qed.
 
   Local Lemma inf_seq_exists_index (f:nat -> nonnegreal) ε:
-    Inf_seq (λ x : nat, f x) < ε -> ∃ n : nat, f n <= ε.
+    Inf_seq (λ x : nat, f x) < ε -> ∃ n : nat, f n < ε.
   Proof.
     Admitted.
   
   Lemma exec_ub_limit_implies_exec_ub e σ Z ε :
+    □(∀ ε1 ε2 s, ⌜ε1<ε2⌝ -∗ Z ε1 s -∗ Z ε2 s) -∗
+    □(∀ ε1 s, (∀ ε2, ⌜ε1<ε2⌝ ={∅}=∗ Z ε2 s) ={∅}=∗ Z ε1 s) -∗
     exec_ub_limit e σ Z ε -∗ exec_ub e σ Z ε.
   Proof.
     rewrite /exec_ub_limit/exec_ub_limit'/exec_ub/exec_ub'.
-    iIntros "Hlimit".
+    iIntros "#Hmonotone #Hcontinuous Hlimit".
     iApply (least_fixpoint_strong_mono with "[][$Hlimit]").
     { apply exec_coupl_pre_mono. }
     iModIntro.
@@ -664,12 +666,17 @@ Section exec_ub_limit.
         apply ub_lift_epsilon_limit.
         + apply Rle_ge. apply inf_seq_nonnegreal_nonneg.
         + intros.
-          assert (∃ n, ε1 n <= ε0) as [n Hn].
+          assert (∃ n, ε1 n < ε0) as [n Hn].
           { apply inf_seq_exists_index. lra.  }
-          eapply UB_mon_grading; [apply Hn|done].
+          eapply UB_mon_grading; [|done].
+          apply Rlt_le. done.
       }
-      iIntros ([??]) "%R'". 
-      admit.
+      iIntros ([??]) "%R'".
+      iApply "Hcontinuous".
+      iIntros (ε') "%Hbound".
+      apply inf_seq_exists_index in Hbound as [n Hbound].
+      iApply "Hmonotone"; [done|].
+      iApply "H". done.
     - iRight; iLeft. iDestruct "H" as "[%R H]".
       iExists R. admit.
     - iRight; iRight. admit. 
