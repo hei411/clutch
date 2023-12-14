@@ -556,7 +556,7 @@ Section exec_ub_limit.
        (∃ R (ε1 ε2 : nat -> nonnegreal), ⌜ (Inf_seq ε1 + Inf_seq ε2 <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (prim_step e1 σ1) R (ε1 n)⌝ ∗ ∀ ρ2 n, ⌜ R ρ2 ⌝ ={∅}=∗ Z (ε2 n) ρ2 ) ∨
          (* [prim_step] with adv composition *)
          (∃ R (ε1 : nat -> nonnegreal) (ε2 : cfg Λ -> nat -> nonnegreal),
-             ⌜ exists r, forall ρ, (Inf_seq (ε2 ρ) <= r)%R ⌝ ∗ ⌜ (Inf_seq ε1 + SeriesC (λ ρ, (prim_step e1 σ1 ρ) * Inf_seq (ε2 ρ)) <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (prim_step e1 σ1) R (ε1 n)⌝ ∗
+             ⌜∃ r, ∀ n ρ, (ε2 ρ n <= r)%R ⌝ ∗ ⌜ (Inf_seq ε1 + SeriesC (λ ρ, (prim_step e1 σ1 ρ) * Inf_seq (ε2 ρ)) <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (prim_step e1 σ1) R (ε1 n)⌝ ∗
                                                                                                                                          ∀ ρ2 n, ⌜ R ρ2 ⌝ ={∅}=∗ Z (ε2 ρ2 n) ρ2 ) ∨
          (* [state_step]  *)
          ([∨ list] α ∈ get_active σ1,
@@ -606,7 +606,7 @@ Section exec_ub_limit.
         (∃ R (ε1 ε2 : nat -> nonnegreal), ⌜ (Inf_seq ε1 + Inf_seq ε2 <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (prim_step e1 σ1) R (ε1 n)⌝ ∗ ∀ ρ2 n, ⌜ R ρ2 ⌝ ={∅}=∗ Z (ε2 n) ρ2 ) ∨
           (* [prim_step] with adv composition *)
           (∃ R (ε1 : nat -> nonnegreal) (ε2 : cfg Λ -> nat -> nonnegreal),
-              ⌜ exists r, forall ρ, (Inf_seq (ε2 ρ) <= r)%R ⌝ ∗
+              ⌜∃ r, ∀ n ρ, (ε2 ρ n <= r)%R ⌝ ∗
                           ⌜ (Inf_seq ε1 + SeriesC (λ ρ, (prim_step e1 σ1 ρ) * Inf_seq (ε2 ρ)) <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (prim_step e1 σ1) R (ε1 n)⌝ ∗ ∀ ρ2 n, ⌜ R ρ2 ⌝ ={∅}=∗ Z (ε2 ρ2 n) ρ2 ) ∨
           (* [state_step]  *)
           ([∨ list] α ∈ get_active σ1,
@@ -640,7 +640,36 @@ Section exec_ub_limit.
   Local Lemma inf_seq_exists_index (f:nat -> nonnegreal) ε:
     Inf_seq (λ x : nat, f x) < ε -> ∃ n : nat, f n < ε.
   Proof.
-    Admitted.
+    intros H.
+    pose proof Sup_seq_minor_lt as Hexist.
+    assert (exists n, Rbar_lt (-ε) ((λ x, -(f x)) n)) as H0; last first.
+    { destruct H0 as [n H0]. exists n. apply Ropp_lt_cancel. apply H0. }
+    rewrite -Hexist.
+    apply Ropp_lt_contravar in H.
+    rewrite Inf_opp_sup in H.
+    rewrite Rbar_opp_real in H.
+    rewrite Ropp_involutive in H.
+    assert ((Sup_seq (fun n : nat => Rbar_opp (Finite (nonneg (f n))))) =
+            (Sup_seq (fun n : nat => Finite (Ropp (nonneg (f n)))))) as Hr by f_equal.
+    simpl.
+    assert (is_finite (Sup_seq (λ n, - f n))) as Hfinite.
+    { apply (is_finite_bounded (- f 0%nat) 0).
+        -- etrans; last apply sup_is_upper_bound. done.
+        -- apply upper_bound_ge_sup. intros. apply Ropp_le_cancel.
+           rewrite Ropp_involutive. replace (-_) with 0 by lra.
+           destruct (f n). eauto.
+    }
+    case_match; [|done|].
+    - symmetry in H0. apply eq_rbar_finite in H0. subst. rewrite rbar_finite_real_eq in Hr.
+      + apply H.
+      + apply (is_finite_bounded (- f 0%nat) 0).
+        -- etrans; last apply sup_is_upper_bound. done.
+        -- apply upper_bound_ge_sup. intros. apply Ropp_le_cancel.
+           rewrite Ropp_involutive. replace (-_) with 0 by lra.
+           destruct (f n). eauto.
+    - done.
+  Qed. 
+ 
   
   Lemma exec_ub_limit_implies_exec_ub e σ Z ε :
     □(∀ ε1 ε2 s, ⌜ε1<ε2⌝ -∗ Z ε1 s -∗ Z ε2 s) -∗
@@ -678,7 +707,43 @@ Section exec_ub_limit.
       iApply "Hmonotone"; [done|].
       iApply "H". done.
     - iRight; iLeft. iDestruct "H" as "[%R H]".
-      iExists R. admit.
+      iExists R. iDestruct "H" as "(%ε1 & %ε2 & %Hbound1 & %Hbound2 & %Hstep & H)".
+      iExists (mknonnegreal (real (Inf_seq ε1)) _), (λ s, (mknonnegreal (real (Inf_seq (ε2 s))) _)).
+      simpl.
+      assert (∀ s, is_finite (Sup_seq (λ n : nat, Rbar_opp (ε2 s n)))) as Hfinite. 
+      { intros s. apply (is_finite_bounded (-ε2 s 0%nat) (0)).
+        -  by apply (Sup_seq_minor_le _ _ 0).  
+        - apply upper_bound_ge_sup => n. apply Rbar_opp_le.
+          rewrite Rbar_opp_involutive.
+          destruct (ε2 s n) => /=.
+          rewrite Ropp_0. done.
+      }
+      iSplitR.     
+      { destruct Hbound1 as [r Hbound1]. iExists r.
+        iPureIntro. intros s.
+        rewrite Inf_opp_sup. apply Ropp_le_cancel.
+        rewrite Rbar_opp_real.
+        rewrite Ropp_involutive.
+        rewrite -rbar_le_rle.
+        rewrite rbar_finite_real_eq; last done.
+        apply (Sup_seq_minor_le _ _ 0). simpl. apply Ropp_le_contravar. eauto. 
+      }
+      iSplitR.
+      { done. }
+      iSplitR.
+      { iPureIntro. apply ub_lift_epsilon_limit.
+        + apply Rle_ge. apply inf_seq_nonnegreal_nonneg.
+        + intros r H.
+          apply Rgt_lt in H. apply inf_seq_exists_index in H.
+          destruct H as [n H].
+          eapply (UB_mon_grading _ _ (ε1 n)); [lra|apply Hstep].
+      }
+      iIntros (s) "%Hr".
+      iApply "Hcontinuous".
+      iIntros (ε') "%H'".
+      apply inf_seq_exists_index in H' as [n H'].
+      iApply "Hmonotone"; [done|].
+      by iApply "H".
     - iRight; iRight. admit. 
   Admitted.
 
