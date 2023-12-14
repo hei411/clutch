@@ -228,7 +228,23 @@ Proof.
 Qed.
 
 
-
+Theorem wp_union_bound_epsilon_lim Σ `{clutchGpreS Σ} (e : expr) (σ : state) (ε : nonnegreal) φ :
+  (∀ `{ub_clutchGS Σ} (ε':nonnegreal), ε<ε' -> ⊢ € ε' -∗ WP e {{ v, ⌜φ v⌝ }}) →
+  ub_lift (lim_exec_val (e, σ)) φ ε.
+Proof.
+  intros H'.
+  apply ub_lift_epsilon_limit.
+  { destruct ε. simpl. lra. }
+  intros ε0 H1.
+  assert (0<=ε0) as Hε0.
+  { trans ε; try lra. by destruct ε. }
+  replace ε0 with (nonneg (mknonnegreal ε0 Hε0)); last by simpl.
+  eapply wp_union_bound_lim; first done.
+  intros. iIntros "He".
+  iApply H'; try iFrame.
+  simpl. lra.
+Qed.
+  
 Lemma exec_ub_epsilon_limit `{ub_clutchGS Σ} (e : expr) σ Z (ε':nonnegreal):
    (∀ ε : nonnegreal, ⌜ε > ε'⌝ -∗ exec_ub e σ Z ε) -∗ exec_ub e σ Z ε'.
 Proof.

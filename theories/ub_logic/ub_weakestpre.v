@@ -549,19 +549,46 @@ End exec_ub.
 Section exec_ub_limit.
   Context `{!irisGS Λ Σ}.
 
+  Local Lemma inf_seq_nonnegreal_nonneg (f:nat -> nonnegreal): 0<=Inf_seq f.
+  Proof.
+    rewrite Inf_opp_sup Rbar_opp_real.
+    apply Ropp_0_ge_le_contravar.
+    apply Rle_ge.
+    replace 0 with (real (Finite 0)); last done.
+    apply finite_rbar_le.
+    + eapply (is_finite_bounded (- (f 0%nat)) 0).
+      -- eapply (Sup_seq_minor_le _ _ 0%nat).
+         rewrite /nonneg. simpl. destruct (f 0%nat). done.
+      -- apply upper_bound_ge_sup. intros. rewrite /nonneg.
+         destruct (f n) as [x Hx].
+         apply Ropp_le_contravar in Hx.
+         replace (-0) with 0 in Hx; try done.
+         lra.
+    + apply upper_bound_ge_sup. intros. rewrite /nonneg.
+      destruct (f n) as [x Hx].
+      apply Ropp_le_contravar in Hx.
+      replace (-0) with 0 in Hx; try done.
+      lra.
+  Qed.
+
+  Program Definition Inf_seq_nnr (f : nat -> nonnegreal) := mknonnegreal (Inf_seq f) _.
+  Next Obligation.
+    apply inf_seq_nonnegreal_nonneg.
+  Qed.
+
   Definition exec_ub_limit_pre (Z : nonnegreal -> cfg Λ → iProp Σ) (Φ : nonnegreal * cfg Λ → iProp Σ) :=
     (λ (x : nonnegreal * cfg Λ),
        let '(ε, (e1, σ1)) := x in
        (* [prim_step] *)
-       (∃ R (ε1 ε2 : nat -> nonnegreal), ⌜ (Inf_seq ε1 + Inf_seq ε2 <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (prim_step e1 σ1) R (ε1 n)⌝ ∗ ∀ ρ2 n, ⌜ R ρ2 ⌝ ={∅}=∗ Z (ε2 n) ρ2 ) ∨
+       (∃ R (ε1 ε2 : nat -> nonnegreal), ⌜ (Inf_seq_nnr ε1 + Inf_seq_nnr ε2 <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (prim_step e1 σ1) R (ε1 n)⌝ ∗ ∀ ρ2 n, ⌜ R ρ2 ⌝ ={∅}=∗ Z (ε2 n) ρ2 ) ∨
          (* [prim_step] with adv composition *)
          (∃ R (ε1 : nat -> nonnegreal) (ε2 : cfg Λ -> nat -> nonnegreal),
-             ⌜∃ r, ∀ n ρ, (ε2 ρ n <= r)%R ⌝ ∗ ⌜ (Inf_seq ε1 + SeriesC (λ ρ, (prim_step e1 σ1 ρ) * Inf_seq (ε2 ρ)) <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (prim_step e1 σ1) R (ε1 n)⌝ ∗
+             ⌜∃ r, ∀ n ρ, (ε2 ρ n <= r)%R ⌝ ∗ ⌜ (Inf_seq_nnr ε1 + SeriesC (λ ρ, (prim_step e1 σ1 ρ) * Inf_seq_nnr (ε2 ρ)) <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (prim_step e1 σ1) R (ε1 n)⌝ ∗
                                                                                                                                          ∀ ρ2 n, ⌜ R ρ2 ⌝ ={∅}=∗ Z (ε2 ρ2 n) ρ2 ) ∨
          (* [state_step]  *)
          ([∨ list] α ∈ get_active σ1,
             (* We allow an explicit weakening of the grading, but maybe it is not needed *)
-            (∃ R (ε1 ε2 : nat -> nonnegreal), ⌜ (Inf_seq ε1 + Inf_seq ε2 <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (state_step σ1 α) R (ε1 n) ⌝ ∗ ∀ σ2 n, ⌜ R σ2 ⌝ ={∅}=∗ Φ (ε2 n,((e1, σ2)))))
+            (∃ R (ε1 ε2 : nat -> nonnegreal), ⌜ (Inf_seq_nnr ε1 + Inf_seq_nnr ε2 <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (state_step σ1 α) R (ε1 n) ⌝ ∗ ∀ σ2, ⌜ R σ2 ⌝ ={∅}=∗ Φ (Inf_seq_nnr ε2,((e1, σ2)))))
     )%I.
 
   Local Instance exec_state_ub_limit_pre_NonExpansive Z Φ :
@@ -600,42 +627,23 @@ Section exec_ub_limit.
   Definition exec_ub_limit' Z := bi_least_fixpoint (exec_ub_limit_pre Z).
   Definition exec_ub_limit e σ Z ε := exec_ub_limit' Z (ε, (e, σ)).
 
+  
   Lemma exec_ub_limit_unfold e1 σ1 Z ε :
     exec_ub_limit e1 σ1 Z ε ≡
       ((* [prim_step] *)
-        (∃ R (ε1 ε2 : nat -> nonnegreal), ⌜ (Inf_seq ε1 + Inf_seq ε2 <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (prim_step e1 σ1) R (ε1 n)⌝ ∗ ∀ ρ2 n, ⌜ R ρ2 ⌝ ={∅}=∗ Z (ε2 n) ρ2 ) ∨
+        (∃ R (ε1 ε2 : nat -> nonnegreal), ⌜ (Inf_seq_nnr ε1 + Inf_seq_nnr ε2 <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (prim_step e1 σ1) R (ε1 n)⌝ ∗ ∀ ρ2 n, ⌜ R ρ2 ⌝ ={∅}=∗ Z (ε2 n) ρ2 ) ∨
           (* [prim_step] with adv composition *)
           (∃ R (ε1 : nat -> nonnegreal) (ε2 : cfg Λ -> nat -> nonnegreal),
               ⌜∃ r, ∀ n ρ, (ε2 ρ n <= r)%R ⌝ ∗
-                          ⌜ (Inf_seq ε1 + SeriesC (λ ρ, (prim_step e1 σ1 ρ) * Inf_seq (ε2 ρ)) <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (prim_step e1 σ1) R (ε1 n)⌝ ∗ ∀ ρ2 n, ⌜ R ρ2 ⌝ ={∅}=∗ Z (ε2 ρ2 n) ρ2 ) ∨
+                          ⌜ (Inf_seq_nnr ε1 + SeriesC (λ ρ, (prim_step e1 σ1 ρ) * Inf_seq_nnr (ε2 ρ)) <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (prim_step e1 σ1) R (ε1 n)⌝ ∗ ∀ ρ2 n, ⌜ R ρ2 ⌝ ={∅}=∗ Z (ε2 ρ2 n) ρ2 ) ∨
           (* [state_step]  *)
           ([∨ list] α ∈ get_active σ1,
              (* We allow an explicit weakening of the grading, but maybe it is not needed *)
-             (∃ R (ε1 ε2 : nat -> nonnegreal), ⌜ (Inf_seq ε1 + Inf_seq ε2 <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (state_step σ1 α) R (ε1 n) ⌝ ∗ ∀ σ2 n, ⌜ R σ2 ⌝ ={∅}=∗ exec_ub_limit e1 σ2 Z (ε2 n)  )))%I.
+             (∃ R (ε1 ε2 : nat -> nonnegreal), ⌜ (Inf_seq_nnr ε1 + Inf_seq_nnr ε2 <= ε)%R ⌝ ∗ ⌜∀ n, ub_lift (state_step σ1 α) R (ε1 n) ⌝ ∗ ∀ σ2, ⌜ R σ2 ⌝ ={∅}=∗ exec_ub_limit e1 σ2 Z (Inf_seq_nnr ε2)  )))%I.
   Proof.  rewrite /exec_ub_limit/exec_ub_limit' least_fixpoint_unfold //. Qed.
 
   
-  Local Lemma inf_seq_nonnegreal_nonneg (f:nat -> nonnegreal): 0<=Inf_seq f.
-  Proof.
-    rewrite Inf_opp_sup Rbar_opp_real.
-    apply Ropp_0_ge_le_contravar.
-    apply Rle_ge.
-    replace 0 with (real (Finite 0)); last done.
-    apply finite_rbar_le.
-    + eapply (is_finite_bounded (- (f 0%nat)) 0).
-      -- eapply (Sup_seq_minor_le _ _ 0%nat).
-         rewrite /nonneg. simpl. destruct (f 0%nat). done.
-      -- apply upper_bound_ge_sup. intros. rewrite /nonneg.
-         destruct (f n) as [x Hx].
-         apply Ropp_le_contravar in Hx.
-         replace (-0) with 0 in Hx; try done.
-         lra.
-    + apply upper_bound_ge_sup. intros. rewrite /nonneg.
-      destruct (f n) as [x Hx].
-      apply Ropp_le_contravar in Hx.
-      replace (-0) with 0 in Hx; try done.
-      lra.
-  Qed.
+  
 
   Local Lemma inf_seq_exists_index (f:nat -> nonnegreal) ε:
     Inf_seq (λ x : nat, f x) < ε -> ∃ n : nat, f n < ε.
@@ -678,17 +686,19 @@ Section exec_ub_limit.
   Proof.
     rewrite /exec_ub_limit/exec_ub_limit'/exec_ub/exec_ub'.
     iIntros "#Hmonotone #Hcontinuous Hlimit".
-    iApply (least_fixpoint_strong_mono with "[][$Hlimit]").
-    { apply exec_coupl_pre_mono. }
+    iApply least_fixpoint_iter; last iExact "Hlimit".
     iModIntro.
     clear e σ ε.
-    iIntros (Φ [ε [e1 σ1]]).
-    rewrite /exec_ub_limit_pre/exec_ub_pre.
-    iIntros "[H|[H|H]]".
+    iIntros ([ε [e1 σ1]]).
+    iIntros "H".
+    iAssert (exec_ub e1 σ1 Z ε) with "[H]" as "H".
+    2: { rewrite /exec_ub/exec_ub'. done. }
+    rewrite exec_ub_unfold.
+    iDestruct "H" as "[H|[H|H]]".
     - iLeft. iDestruct "H" as "[%R H]".
       iExists R. iDestruct "H" as "(%ε1 & %ε2 & %Hε & %Hstep &H)".
-      iExists (mknonnegreal (real (Inf_seq ε1)) _), (mknonnegreal (real (Inf_seq ε2)) _).
-      simpl. iSplitR.
+      iExists (Inf_seq_nnr ε1), (Inf_seq_nnr ε2).
+      iSplitR.
       { done. }
       iSplitR.
       { iPureIntro.
@@ -696,7 +706,7 @@ Section exec_ub_limit.
         + apply Rle_ge. apply inf_seq_nonnegreal_nonneg.
         + intros.
           assert (∃ n, ε1 n < ε0) as [n Hn].
-          { apply inf_seq_exists_index. lra.  }
+          { apply inf_seq_exists_index. simpl in H. lra.  }
           eapply UB_mon_grading; [|done].
           apply Rlt_le. done.
       }
@@ -708,7 +718,7 @@ Section exec_ub_limit.
       iApply "H". done.
     - iRight; iLeft. iDestruct "H" as "[%R H]".
       iExists R. iDestruct "H" as "(%ε1 & %ε2 & %Hbound1 & %Hbound2 & %Hstep & H)".
-      iExists (mknonnegreal (real (Inf_seq ε1)) _), (λ s, (mknonnegreal (real (Inf_seq (ε2 s))) _)).
+      iExists (Inf_seq_nnr ε1), (λ s, (Inf_seq_nnr (ε2 s))).
       simpl.
       assert (∀ s, is_finite (Sup_seq (λ n : nat, Rbar_opp (ε2 s n)))) as Hfinite. 
       { intros s. apply (is_finite_bounded (-ε2 s 0%nat) (0)).
@@ -744,9 +754,29 @@ Section exec_ub_limit.
       apply inf_seq_exists_index in H' as [n H'].
       iApply "Hmonotone"; [done|].
       by iApply "H".
-    - iRight; iRight. admit. 
-  Admitted.
-
+    - iRight; iRight.
+      iInduction (get_active σ1) as [|l ls] "IH".
+      { by rewrite big_orL_nil //. }
+      rewrite 2!big_orL_cons. iDestruct "H" as "[H|H]".
+      2: { iRight. by iApply "IH". }
+      iLeft.
+      iDestruct "H" as "(%R & %ε1 & %ε2 & %Hbound & %Hstep & H)".
+      iExists R, (Inf_seq_nnr ε1), (Inf_seq_nnr ε2).
+      simpl.
+      iSplitR.
+      { done. }
+      iSplitR.
+      { iPureIntro. apply ub_lift_epsilon_limit.
+        + apply Rle_ge. apply inf_seq_nonnegreal_nonneg.
+        + intros r H.
+          apply Rgt_lt in H. apply inf_seq_exists_index in H.
+          destruct H as [n H].
+          eapply (UB_mon_grading _ _ (ε1 n)); [lra|apply Hstep].
+      }
+      iIntros (s) "%Hr".
+      by iApply "H".
+  Qed.
+  
   Lemma exec_ub_implies_exec_ub_limit e σ Z ε :
     exec_ub e σ Z ε -∗ exec_ub_limit e σ Z ε.
   Proof.
