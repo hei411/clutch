@@ -3,7 +3,7 @@ From Coq Require Import Reals Psatz.
 From Coquelicot Require Import Rcomplements.
 From stdpp Require Export countable.
 
-From clutch.prelude Require Import base Coquelicot_ext Reals_ext stdpp_ext.
+From clutch.prelude Require Import base Coquelicot_ext Reals_ext stdpp_ext classical.
 From clutch.prob Require Export countable_sum distribution.
 
 #[local] Open Scope R.
@@ -103,9 +103,8 @@ Section ex_coupl.
     intros Hfg (μ & Hμ).
     rewrite /ex_coupl in Hfg.
     assert (∀ (p : A * B), ∃ μ : distr (A' * B'), is_coupl (f p.1) (g p.2) μ) as Hfg'; [done|].
-    pose proof (Choice (A * B) (distr (A' * B')) _ Hfg') as Ch.
+    apply ClassicalEpsilon.choice in Hfg' as (Ch & HCh).
     rewrite /ex_coupl.
-    destruct Ch as (Ch & HCh).
     exists (dbind Ch μ); split.
     + apply distr_ext; intro a'.
       rewrite lmarg_pmf.
@@ -230,7 +229,7 @@ Section Rcoupl.
         destruct Hfg as (μ' & Hμ'1 & Hμ'2).
         exists μ'; auto.
       + exists dzero; intro ; done. }
-    pose proof (Choice (A * B) (distr (A' * B')) _ Hfg') as (Ch & HCh).
+    apply ClassicalEpsilon.choice in Hfg' as (Ch & Hch).
     rewrite /Rcoupl /is_Rcoupl.
     exists (dbind Ch μ); split; try split.
     (* To prove that the marginal coincides is a matter of rearranging the sums and using the
@@ -245,7 +244,7 @@ Section Rcoupl.
         destruct (Rtotal_order (μ (a, b)) 0) as [Hlt | [Heqz | Hgt]].
         - pose proof (pmf_pos μ (a, b)); lra.
         - rewrite Heqz; lra.
-        - specialize (HCh (a, b) (HμS (a, b) Hgt )) as ((HChL & HChR) & HChS).
+        - specialize (Hch (a, b) (HμS (a, b) Hgt )) as ((HChL & HChR) & HChS).
           rewrite -HChL lmarg_pmf //=. }
       rewrite fubini_pos_seriesC_prod_lr; auto.
       2: { simpl; intros; by apply Rmult_le_pos. }
@@ -268,7 +267,7 @@ Section Rcoupl.
         destruct (Rtotal_order (μ (a, b)) 0) as [Hlt | [Heqz | Hgt]].
         - pose proof (pmf_pos μ (a, b)); lra.
         - rewrite Heqz. lra.
-        - specialize (HCh (a, b) (HμS (a, b) Hgt)) as ((HChL & HChR) & HChS).
+        - specialize (Hch (a, b) (HμS (a, b) Hgt)) as ((HChL & HChR) & HChS).
           rewrite -HChR rmarg_pmf //=. }
       rewrite fubini_pos_seriesC_prod_rl.
       2: { simpl; intros; by apply Rmult_le_pos. }
@@ -284,7 +283,7 @@ Section Rcoupl.
     + intros (a' & b') H3; simpl.
       pose proof (dbind_pos Ch μ (a', b')) as (H4 & H5).
       specialize (H4 H3) as ((a0, b0) & H7 & H8).
-      specialize (HCh (a0, b0) (HμS (a0, b0) H8)) as (HCh1 & HCh2).
+      specialize (Hch (a0, b0) (HμS (a0, b0) H8)) as (HCh1 & HCh2).
       specialize (HCh2 (a', b') H7).
       done.
   Qed.
@@ -430,6 +429,38 @@ Proof.
     apply (SeriesC_singleton_inj y2 f); [apply _|].
     apply (surj f).
   - intros (m1 & m2) (n & [=] & Hn)%dmap_pos =>/=. by simplify_eq.
+Qed.
+
+(* TODO: generalize *)
+Lemma Rcoupl_fair_coin_dunifP `{Countable A} (μ : distr A) R :
+  Rcoupl fair_coin μ R →
+  Rcoupl (dunifP 1) μ (λ n a, R (fin_to_bool n) a).
+Proof.
+  intros Hcpl.
+  assert (dunifP 1 = dmap bool_to_fin fair_coin) as ->.
+  { apply distr_ext=>n.
+    (* TODO: use some nicer lemma *)
+    rewrite /pmf/= /dbind_pmf SeriesC_bool.
+    rewrite /pmf/= /fair_coin_pmf /dret_pmf.
+    inv_fin n; simpl; [lra|]=> n.
+    inv_fin n; simpl; [lra|].
+    inversion 1. }
+  rewrite -(dret_id_right μ).
+  apply Rcoupl_dmap.
+  assert ((λ (a : bool) (a' : A), R (fin_to_bool (bool_to_fin a)) a') = R) as ->; [|done].
+  extensionality b.
+  rewrite bool_to_fin_to_bool //.
+Qed.
+
+Lemma fair_conv_comb_dbind `{Countable A, Countable B} (f : A → distr B) (μ1 μ2 : distr A):
+  fair_conv_comb μ1 μ2 ≫= f = fair_conv_comb (μ1 ≫= f) (μ2 ≫= f).
+Proof.
+  rewrite /fair_conv_comb.
+  rewrite -dbind_assoc.
+  apply Rcoupl_eq_elim.
+  eapply Rcoupl_dbind; [| apply Rcoupl_eq].
+  intros a b ->.
+  destruct b; simpl; apply Rcoupl_eq.
 Qed.
 
 Section Rcoupl_strength.
@@ -586,6 +617,22 @@ Section refRcoupl.
     intro. rewrite HμR; lra.
   Qed.
 
+  Lemma Rcoupl_refRcoupl' (μ1 : distr A) (μ2 : distr B) (R : A → B → Prop) :
+    Rcoupl μ1 μ2 R → refRcoupl μ2 μ1 (flip R).
+  Proof.
+    rewrite /refRcoupl /Rcoupl.
+    intros (μ & ((HμL & HμR) & HμSupp)).
+    exists (dswap μ).
+    split; last first.
+    { intros [b a] [[? ?] [[= <- <-] ?]]%dmap_pos=>/=.      
+      by eapply (HμSupp (_, _)). }
+    split.
+    { rewrite lmarg_dswap //. }
+    intros a.
+    rewrite rmarg_dswap.
+    rewrite HμL //. 
+  Qed.
+
   Lemma refRcoupl_dret a b (R : A → B → Prop) :
     R a b → refRcoupl (dret a) (dret b) R.
   Proof.
@@ -614,7 +661,7 @@ Section refRcoupl.
         destruct Hfg as (μ' & Hμ'1 & Hμ'2).
         exists μ'; auto.
       + exists dzero; intro ; done. }
-    pose proof (Choice (A * B) (distr (A' * B')) _ Hfg') as (Ch & HCh).
+    apply ClassicalEpsilon.choice  in Hfg' as (Ch & HCh).
     rewrite /Rcoupl /is_Rcoupl.
     exists (dbind Ch μ); split; try split.
     (* To prove that the first marginal coincides is a matter of rearranging the sums and using the
@@ -753,9 +800,9 @@ Notation "μ1 '≾' μ2 ':' R" :=
   (refRcoupl μ1 μ2 R)
   (at level 100, μ2 at next level,
    R at level 200,
-    format "'[hv' μ1  '/' '≾'  '/  ' μ2  :  R ']'").
+    format "'[hv' μ1  '/' '≾'  '/' μ2  :  R ']'").
 
 Notation "μ1 '≿' μ2 ':' R" :=
-  (refRcoupl μ2 μ1 R)
+  (refRcoupl μ2 μ1 (flip R))
   (at level 100, μ2 at next level,
    R at level 200, only parsing).

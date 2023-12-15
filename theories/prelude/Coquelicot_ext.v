@@ -18,11 +18,181 @@ Proof.
   rewrite /Rbar_le. destruct x => //=.
 Qed.
 
+Lemma Rbar_le_sandwich p q r :
+  Rbar_le (Finite p) r ->
+  Rbar_le r (Finite q) ->
+  Finite (real r) = r.
+Proof.
+  intros Hp Hq.
+  destruct r eqn:Hr; auto.
+  - destruct Hq.
+  - destruct Hp.
+Qed.
+
+Lemma Rbar_le_fin x y: 0 <= y → Rbar_le x (Finite y) → (real x) <= y.
+Proof.
+  rewrite /Rbar_le. destruct x => //=.
+Qed.
+
+Lemma rbar_le_finite (p : R) (q : Rbar) :
+  is_finite q ->
+  Rbar_le p q ->
+  p <= real q.
+Proof.
+  intros Hq Hle.
+  rewrite /is_finite/= in Hq.
+  destruct q; auto; simplify_eq.
+Qed.
+
+Lemma finite_rbar_le (p : R) (q : Rbar) :
+  is_finite q ->
+  Rbar_le q p ->
+  q <= real p.
+Proof.
+  intros Hq Hle.
+  rewrite /is_finite/= in Hq.
+  destruct q; auto; simplify_eq.
+Qed.
+
+Lemma rbar_le_rle (p : R) (q : R) :
+  Rbar_le (Finite p) (Finite q) <-> Rle p q.
+Proof.
+  auto.
+Qed.
+
+Lemma is_finite_bounded (p q : R) (r : Rbar) :
+  Rbar_le p r ->
+  Rbar_le r q ->
+  is_finite r.
+Proof.
+  intros H1 H2.
+  rewrite /is_finite.
+  destruct r eqn:Hr; auto.
+  - destruct H2.
+  - destruct H1.
+Qed.
+
+Lemma rbar_finite_real_eq (p : Rbar) :
+  is_finite p ->
+  Finite (real p) = p.
+Proof.
+  intro Hfin.
+  destruct p; auto.
+Qed.
+
+Lemma rbar_le_finite_real r :
+  Rbar_le (Finite 0) r ->
+  Rbar_le (Finite (real r)) r.
+Proof.
+  intro Hpos.
+  destruct r eqn:Heq; simpl; auto.
+  apply Rle_refl.
+Qed.
+
+Lemma Rbar_plus_le_pos_l (a b c : Rbar) :
+  Rbar_lt 0 c → Rbar_le a (Rbar_plus a c).
+Proof.
+  intros.
+  rewrite <- (Rbar_plus_0_r a) at 1.
+  apply Rbar_plus_le_compat; [ reflexivity | ].
+  by apply Rbar_lt_le.
+Qed.
+
+Lemma eq_rbar_finite x y :
+  Finite x = y → x = real(y).
+Proof.
+  intro Heq.
+  destruct y; simplify_eq; auto.
+Qed.
+
+Lemma eq_rbar_finite' x y :
+  x = Finite y → real x = y.
+Proof.
+  intro Heq.
+  destruct x; simplify_eq; auto.
+Qed.
+
+Lemma Rbar_0_le_to_Rle x :
+  Rbar_le 0 x → 0 <= x.
+Proof.
+  intro Hle.
+  destruct x; simpl; auto; lra.
+Qed.
+
+Lemma Rbar_0_le_to_Rle' x :
+  Rbar_le 0 (Finite x) → 0 <= x.
+Proof.
+  intro Hle; auto.
+Qed.
+
+Lemma rmult_finite (p q : R) :
+  Finite (p * q) = Rbar_mult (Finite p) (Finite q).
+Proof. reflexivity. Qed.
+
+Lemma Rbar_le_opp (p q : Rbar) (r : R) :
+  Rbar_le (Rbar_plus p r) q ↔ Rbar_le p (Rbar_plus q (Finite (-r))).
+Proof.
+  split.
+  - intro H1.
+    destruct p eqn:Hp;
+      destruct q eqn:Hq;
+      simpl in *; try lra.
+  - intro H2.
+    destruct p eqn:Hp;
+      destruct q eqn:Hq;
+      simpl in *; try lra.
+Qed. 
+
+Lemma Rle_exists_nat (x y : R) :
+  (0 <= x) → (0 < y) → ∃ (n : nat), x / (1 + n) < y.
+Proof.
+  intros Hx Hy.
+  assert (exists (r : R), 0 < r /\ x / r < y) as [r [Hr1 Hr2]].
+  {
+    exists ((x+1)/y); split.
+    - apply Rdiv_lt_0_compat; lra.
+    - apply Rlt_div_l.
+      + apply Rlt_gt,
+          Rdiv_lt_0_compat; lra.
+      + rewrite Rmult_comm Rmult_assoc Rinv_l; lra.
+  }
+  destruct (nfloor1_ex r Hr1) as [n Hn].
+  exists (S (S n)).
+  do 2 rewrite S_INR.
+  apply Rlt_div_l; [lra | ].
+  apply Rlt_div_l in Hr2; auto.
+  apply (Rlt_le_trans _ _ _ Hr2).
+  apply Rmult_le_compat_l; lra.
+Qed.
+
 Lemma norm_dist_mid x y z: norm (x - y) <= norm (x - z) + norm (z - y).
 Proof.
   replace (x - y) with ((x - z) + (z - y)) by field.
   etransitivity; last eapply norm_triangle.
   apply Rle_refl.
+Qed.
+
+Lemma sum_n_shift (a : nat → R) n :
+  sum_n (λ m, a (S m)) n = sum_n a (S n) - a 0%nat.
+Proof.
+  rewrite sum_Sn /plus /=.
+  induction n as [|n IH].
+  - rewrite 2!sum_O /=. lra.
+  - rewrite 2!sum_Sn /plus /= IH. lra.
+Qed.
+
+Lemma sum_n_shift' (a : nat → R) (n : nat) :
+  sum_n a (S n) = sum_n (λ m : nat, a (S m)) n + a 0%nat.
+Proof.
+  rewrite sum_n_shift; lra.
+Qed.
+
+Lemma sum_n_Ropp (a : nat → R) n :
+  sum_n (λ n, - a n) n = - sum_n a n.
+Proof.
+  revert a; induction n => a.
+  - rewrite 2!sum_O //.
+  - rewrite 2!sum_Sn /plus /= IHn. lra.
 Qed.
 
 Lemma sum_n_m_filter (a: nat → R) (P: nat → Prop) `{∀ x, Decision (P x)} n m :
@@ -32,6 +202,66 @@ Proof.
   destruct (bool_decide (P k)) => //=; try nra.
   apply Rabs_pos.
 Qed.
+
+
+Lemma partial_sum_pos (h : nat → R) p :
+  (∀ n, 0 <= h n) →
+  0 <= sum_n h p.
+Proof.
+  intros Hpos.
+  rewrite /sum_n.
+  induction p.
+  - rewrite sum_n_n; auto.
+  - rewrite sum_n_Sm; auto with arith.
+    apply Rplus_le_le_0_compat; auto.
+Qed.
+
+Lemma partial_sum_elem (h : nat → R) p :
+  (∀ n, 0 <= h n) →
+  h p <= sum_n h p.
+Proof.
+  intros Hpos.
+  rewrite /sum_n.
+  induction p.
+  - rewrite sum_n_n; auto.
+    apply Rle_refl.
+  - rewrite sum_n_Sm; auto with arith.
+    assert (h (S p) = 0 + h (S p)) as Haux; try lra.
+    rewrite {1}Haux.
+    apply Rplus_le_compat; [apply partial_sum_pos | apply Rle_refl]; auto.
+Qed.
+
+Lemma partial_sum_mon (h : nat → R) p q :
+  (∀ n, 0 <= h n) →
+  p ≤ q →
+  sum_n h p <= sum_n h q.
+Proof.
+  intros Hge Hpq.
+  rewrite /sum_n.
+  induction q.
+  - assert (p = 0%nat); auto with arith.
+    simplify_eq; done.
+  - destruct (PeanoNat.Nat.le_gt_cases p q) as [H1 | H1].
+    + specialize (IHq H1).
+      rewrite sum_n_Sm; auto with arith.
+      rewrite /plus /=.
+      specialize (Hge (S q)).
+      lra.
+    + assert (p = S q) as ->; auto with arith.
+      lra.
+Qed.
+
+Lemma sum_n_le (h g: nat → R) n:
+  (∀ m, h m <= g m) →
+  sum_n h n <= sum_n g n.
+Proof.
+  intro Hle.
+  induction n.
+  - rewrite 2!sum_O //.
+  - rewrite 2!sum_Sn.
+    by apply Rplus_le_compat.
+Qed.
+
 
 Lemma is_series_0 a :
   (∀ n, a n = 0) → is_series a 0.
@@ -174,7 +404,7 @@ Qed.
 
 Lemma sum_n_partial_pos a :
   (∀ n, 0 <= a n) →
-   ∀ n : nat, 0 <= sum_n a n.
+  ∀ n : nat, 0 <= sum_n a n.
 Proof.
   intros Hpos n'; induction n' => //=; rewrite ?sum_O ?sum_Sn; eauto.
   specialize (Hpos (S n')). rewrite /plus //=. nra.

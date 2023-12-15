@@ -5,7 +5,7 @@ From iris.base_logic.lib Require Export ghost_map.
 From clutch.app_rel_logic Require Export app_weakestpre ectx_lifting.
 From clutch.prob_lang Require Export class_instances.
 From clutch.prob_lang Require Import tactics lang notation.
-From clutch.rel_logic Require Import spec_ra.
+From clutch.app_rel_logic Require Import spec_ra.
 From iris.prelude Require Import options.
 From clutch.ub_logic Require Export error_credits.
 
@@ -86,7 +86,7 @@ Proof.
   iIntros (Φ) "_ HΦ".
   iApply wp_lift_atomic_head_step; [done|].
   iIntros (σ1) "[Hh Ht] !#".
-  iSplit; [by eauto with head_step|].
+  solve_red.
   iIntros "!> /=" (e2 σ2 Hs); inv_head_step.
   iMod ((ghost_map_insert (fresh_loc σ1.(heap)) v) with "Hh") as "[$ Hl]".
   { apply not_elem_of_dom, fresh_loc_is_fresh. }
@@ -100,7 +100,7 @@ Proof.
   iApply wp_lift_atomic_head_step; [done|].
   iIntros (σ1) "[Hh Ht] !#".
   iDestruct (ghost_map_lookup with "Hh Hl") as %?.
-  iSplit; [by eauto with head_step|].
+  solve_red.
   iIntros "!> /=" (e2 σ2 Hs); inv_head_step.
   iFrame. iModIntro. by iApply "HΦ".
 Qed.
@@ -113,7 +113,7 @@ Proof.
   iApply wp_lift_atomic_head_step; [done|].
   iIntros (σ1) "[Hh Ht] !#".
   iDestruct (ghost_map_lookup with "Hh Hl") as %?.
-  iSplit; [by eauto with head_step|].
+  solve_red.
   iIntros "!> /=" (e2 σ2 Hs); inv_head_step.
   iMod (ghost_map_update with "Hh Hl") as "[$ Hl]".
   iFrame. iModIntro. by iApply "HΦ".
@@ -121,13 +121,12 @@ Qed.
 
 Lemma wp_rand (N : nat) (z : Z) E :
   TCEq N (Z.to_nat z) →
-  {{{ True }}} rand #z from #() @ E {{{ (n : fin (S N)), RET #n; True }}}.
+  {{{ True }}} rand #z @ E {{{ (n : fin (S N)), RET #n; True }}}.
 Proof.
   iIntros (-> Φ) "_ HΦ".
   iApply wp_lift_atomic_head_step; [done|].
   iIntros (σ1) "Hσ !#".
-  iSplit; [eauto with head_step|].
-  Unshelve. 2 : { apply 0%fin . }
+  solve_red.
   iIntros "!>" (e2 σ2 Hs).
   inv_head_step.
   iFrame.
@@ -142,7 +141,7 @@ Proof.
   iIntros (-> Φ) "_ HΦ".
   iApply wp_lift_atomic_head_step; [done|].
   iIntros (σ1) "(Hh & Ht) !# /=".
-  iSplit; [by eauto with head_step|].
+  solve_red.
   iIntros "!>" (e2 σ2 Hs); inv_head_step.
   iMod (ghost_map_insert (fresh_loc σ1.(tapes)) with "Ht") as "[$ Hl]".
   { apply not_elem_of_dom, fresh_loc_is_fresh. }
@@ -152,13 +151,13 @@ Qed.
 
 Lemma wp_rand_tape N α n ns z E :
   TCEq N (Z.to_nat z) →
-  {{{ ▷ α ↪ (N; n :: ns) }}} rand #z from #lbl:α @ E {{{ RET #(LitInt n); α ↪ (N; ns) }}}.
+  {{{ ▷ α ↪ (N; n :: ns) }}} rand(#lbl:α) #z @ E {{{ RET #(LitInt n); α ↪ (N; ns) }}}.
 Proof.
   iIntros (-> Φ) ">Hl HΦ".
   iApply wp_lift_atomic_head_step; [done|].
   iIntros (σ1) "(Hh & Ht) !#".
   iDestruct (ghost_map_lookup with "Ht Hl") as %?.
-  iSplit; [eauto with head_step|].
+  solve_red.
   iIntros "!>" (e2 σ2 Hs).
   inv_head_step.
   iMod (ghost_map_update with "Ht Hl") as "[$ Hl]".
@@ -168,14 +167,13 @@ Qed.
 
 Lemma wp_rand_tape_empty N z α E :
   TCEq N (Z.to_nat z) →
-  {{{ ▷ α ↪ (N; []) }}} rand #z from #lbl:α @ E {{{ (n : fin (S N)), RET #(LitInt n); α ↪ (N; []) }}}.
+  {{{ ▷ α ↪ (N; []) }}} rand(#lbl:α) #z @ E {{{ (n : fin (S N)), RET #(LitInt n); α ↪ (N; []) }}}.
 Proof.
   iIntros (-> Φ) ">Hl HΦ".
   iApply wp_lift_atomic_head_step; [done|].
   iIntros (σ1) "(Hh & Ht) !#".
   iDestruct (ghost_map_lookup with "Ht Hl") as %?.
-  iSplit; [by eauto with head_step|].
-  Unshelve. 2 : { apply 0%fin. }
+  solve_red.
   iIntros "!>" (e2 σ2 Hs).
   inv_head_step.
   iFrame.
@@ -185,14 +183,13 @@ Qed.
 Lemma wp_rand_tape_wrong_bound N M z α E ns :
   TCEq N (Z.to_nat z) →
   N ≠ M →
-  {{{ ▷ α ↪ (M; ns) }}} rand #z from #lbl:α @ E {{{ (n : fin (S N)), RET #(LitInt n); α ↪ (M; ns) }}}.
+  {{{ ▷ α ↪ (M; ns) }}} rand(#lbl:α) #z @ E {{{ (n : fin (S N)), RET #(LitInt n); α ↪ (M; ns) }}}.
 Proof.
   iIntros (-> ? Φ) ">Hl HΦ".
   iApply wp_lift_atomic_head_step; [done|].
   iIntros (σ1) "(Hh & Ht) !#".
   iDestruct (ghost_map_lookup with "Ht Hl") as %?.
-  iSplit; [by eauto with head_step|].
-  Unshelve. 2 : { apply 0%fin. }
+  solve_red.
   iIntros "!>" (e2 σ2 Hs).
   inv_head_step.
   iFrame.

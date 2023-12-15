@@ -1,5 +1,6 @@
 SRC_DIRS := 'theories'
-VFILES := $(shell find $(SRC_DIRS) -name '*.v' -a '!' -name '*'.\#'*')
+EXT_DIRS := 'external'
+VFILES := $(shell find $(EXT_DIRS) $(SRC_DIRS) -name '*.v' -a '!' -name '*'.\#'*')
 COQC := coqc
 Q:=@
 
@@ -7,9 +8,6 @@ Q:=@
 COQPROJECT_ARGS := $(shell sed -E -e '/^\#/d' -e 's/-arg ([^ ]*)/\1/g' _CoqProject)
 
 all: $(VFILES:.v=.vo)
-
-zip :
-	zip -FSr coq-clutch.zip theories _CoqProject iris-probability.opam Makefile README.md
 
 .coqdeps.d: $(VFILES) _CoqProject
 	@echo "COQDEP $@"
@@ -38,4 +36,8 @@ clean:
 		-o -name ".*.aux" -o -name ".*.cache" -o -name "*.glob" \) -delete
 	$(Q)rm -f .lia.cache
 	rm -f .coqdeps.d
+
+zip:
+	git archive -o coq-clutch.zip main
+
 .PHONY: clean zip

@@ -1,7 +1,7 @@
 From clutch.app_rel_logic Require Export app_clutch map list.
 Set Default Proof Using "Type*".
 
-Module prf_prp.
+Section prf_prp.
 
   (* This is the same as the simple hash *)
 
@@ -19,7 +19,7 @@ Module prf_prp.
       match: get hm "v" with
       | SOME "b" => "b"
       | NONE =>
-          let: "b" := (rand #val_size from #()) in
+          let: "b" := (rand #val_size) in
           set hm "v" "b";;
           "b"
       end.
@@ -28,7 +28,7 @@ Module prf_prp.
       match: get "hm" "v" with
       | SOME "b" => "b"
       | NONE =>
-          let: "b" := (rand #val_size from #()) in
+          let: "b" := (rand #val_size) in
           set "hm" "v" "b";;
           "b"
       end.
@@ -154,7 +154,7 @@ Module prf_prp.
       | SOME "n" => "n"
       | NONE =>
           let: "ln" := list_length !fv in
-          let: "n" := (rand ("ln" - #1) from #()) in
+          let: "n" := (rand ("ln" - #1)) in
           (match: list_remove_nth !fv "n" with
           | SOME "p" =>
               set hm "v" (Fst "p");;
@@ -171,7 +171,7 @@ Module prf_prp.
       | SOME "n" => "n"
       | NONE =>
           let: "ln" := list_length !"fv" in
-          let: "n" := (rand ("ln" - #1) from #()) in
+          let: "n" := (rand ("ln" - #1)) in
           (match: list_remove_nth !"fv" "n" with
           | SOME "p" =>
               set "hm" "v" (Fst "p");;
@@ -355,7 +355,7 @@ Module prf_prp.
  Lemma NoDup_remove_pref [A : Type] (l l' : list A):
    List.NoDup (l ++ l') → List.NoDup (l').
  Proof.
-   induction l as [? | a l]; simpl; auto.
+   induction l as [| a l]; simpl; auto.
    intros H.
    apply IHl.
    replace (l ++ l') with ([] ++ (l ++ l')); auto.
@@ -440,7 +440,7 @@ Module prf_prp.
      do 3 f_equal; lia.
     }
 
-    tp_bind (rand _ from _ )%E.
+    tp_bind (rand _)%E.
     iEval (rewrite refines_right_bind) in "HK".
     set f := (λ n : nat, if (n <=? vl) then Z.to_nat (nth n sr 0) else n + val_size).
     wp_apply (wp_couple_rand_rand_rev_inj val_size vl f val_size vl).
@@ -557,7 +557,7 @@ Definition test_prf: val :=
   letrec: "aux" "f" "i" :=
     (if: "i" ≤ #0
      then  "f"
-     else let: "x" := rand #val_size from #() in
+     else let: "x" := rand #val_size in
           "f" "x";;
           "aux" "f" ("i" - #1)) in
     "aux" "f" "n".
@@ -569,7 +569,7 @@ Definition test_prp: val :=
   letrec: "aux" "f" "i" :=
     (if: "i" ≤ #0
      then  "f"
-     else let: "x" := rand #val_size from #() in
+     else let: "x" := rand #val_size in
           "f" "x";;
           "aux" "f" ("i" - #1)) in
     "aux" "f" "n".
@@ -610,10 +610,10 @@ Definition test_prp: val :=
      iExists _,_,_. iFrame.
 
    - wp_pures.
-     wp_bind (rand _ from _)%E.
+     wp_bind (rand _)%E.
 
      tp_pures.
-     tp_bind (rand _ from _)%E.
+     tp_bind (rand _)%E.
      iEval (rewrite refines_right_bind) in "HK".
 
      iMod (ec_zero).
@@ -651,13 +651,8 @@ Definition test_prp: val :=
        do 3 f_equal. lia.
      }
      iApply "IH".
-Admitted.
 
+ Abort.
 
- End prf_prp.
-
-
-
-
-
+End prf_prp.
 

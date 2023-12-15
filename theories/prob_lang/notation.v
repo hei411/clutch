@@ -34,19 +34,38 @@ Notation "# l" := (LitV l%Z%V%stdpp) (at level 8, format "# l").
 Notation "( e1 , e2 , .. , en )" := (Pair .. (Pair e1 e2) .. en) : expr_scope.
 Notation "( e1 , e2 , .. , en )" := (PairV .. (PairV e1 e2) .. en) : val_scope.
 
+(* We implement a destructing let bind (x₁,…,xₙ) for tuples by storing the
+   value v that e1 computes in xₙ, bind (fst xₙ) to xₙ₋₁ to hold x₁…xₙ₋₁, bind
+   xₙ to the last component of v, so on. Since xₙ is bound in e2, we have no
+   risk of shadowing other uses of x₁. *)
 (* I failed to convince Coq that this pattern is recursive, so here's the
    unrolled version for a pairs and triples. *)
 Notation "'let,' ( x1 , x2 ) := e1 'in' e2" :=
   (Lam x2%E (Lam x1%E (Lam x2%E e2%E (Snd x2)) (Fst x2)) e1%E)
   (at level 100, x1, x2 at level 1, e1, e2 at level 200) : expr_scope.
 
+(* Notation "'let,' ( x1 , x2 , x3 ) := e1 'in' e2" := *)
+(*   (Lam x3%E (Lam x2%E (Lam x3%E (Lam x1%E (Lam x2%E e2%E (Snd x2)) (Fst x2)) (Snd x3)) (Fst x3)) e1%E) *)
+(*   (at level 100, x1, x2, x3 at level 1, e1, e2 at level 200) : expr_scope. *)
+
+(* Notation "'let,' ( x1 , ( x2 , x3 ) ) := e1 'in' e2" := *)
+(*   (Lam x1%E (Lam x2%E (Lam x1%E (Lam x3%E (Lam x2%E e2%E (Fst x2)) (Snd x2)) (Fst x1)) (Snd x1)) e1%E) *)
+(*   (at level 100, x1, x2, x3 at level 1, e1, e2 at level 200) : expr_scope. *)
+
+(* This version doesn't have as uniform of a recursion as described above, but
+   it is more concise, since it only uses one of the pattern variables as
+   temporary variable from which the others are projected. *)
 Notation "'let,' ( x1 , x2 , x3 ) := e1 'in' e2" :=
-  (Lam x3%E (Lam x2%E (Lam x3%E (Lam x1%E (Lam x2%E e2%E (Snd x2)) (Fst x2)) (Snd x3)) (Fst x3)) e1%E)
+  ((Lam x1%E (Lam x2 (Lam x3 (Lam x1%E e2 (Fst (Fst x1))) (Snd x1)) (Snd (Fst x1)))) e1%E)
   (at level 100, x1, x2, x3 at level 1, e1, e2 at level 200) : expr_scope.
 
 Notation "'let,' ( x1 , ( x2 , x3 ) ) := e1 'in' e2" :=
-  (Lam x1%E (Lam x2%E (Lam x1%E (Lam x3%E (Lam x2%E e2%E (Fst x2)) (Snd x2)) (Fst x1)) (Snd x1)) e1%E)
-  (at level 100, x1, x2, x3 at level 1, e1, e2 at level 200) : expr_scope.
+  ((Lam x1%E (Lam x2 (Lam x3 (Lam x1%E e2 (Fst x1)) (Snd (Snd x1))) (Fst (Snd x1)))) e1%E)
+    (at level 100, x1, x2, x3 at level 1, e1, e2 at level 200) : expr_scope.
+
+Notation "'let,' ( x1 , x2 , x3 , x4 ) := e1 'in' e2" :=
+  ((Lam x1%E (Lam x2 (Lam x3 (Lam x4 (Lam x1%E e2 (Fst (Fst (Fst x1)))) (Snd x1)) (Snd (Fst x1))) (Snd (Fst (Fst x1))))) e1%E)
+  (at level 100, x1, x2, x3 at level 1, e1, e2 at level 200) : expr_scope.  
 
 (*
 Using the '[hv' ']' printing box, we make sure that when the notation for match
@@ -91,9 +110,13 @@ Notation "'ref' e" := (Alloc e%E) (at level 10) : expr_scope.
 Notation "- e" := (UnOp MinusUnOp e%E) : expr_scope.
 
 Notation alloc := AllocTape.
-Notation "'rand' e1 'from' e2" := (Rand e1%E e2%E) (at level 75, left associativity) : expr_scope.
-Notation "'#lbl:' α" := (# (LitLbl α)) (at level 8, format "#lbl: α").
 
+
+Notation "'rand(' α ) e" := (Rand e%E α%E) (at level 70, right associativity, format "'rand(' α )  e") : expr_scope.
+Notation "'rand' e" := (Rand e%E (Val $ LitV LitUnit)) (at level 70) : expr_scope.
+
+Notation "'#lbl:' α" := (# (LitLbl α)) (at level 8, format "#lbl: α").
+  
 Notation "e1 + e2" := (BinOp PlusOp e1%E e2%E) : expr_scope.
 Notation "e1 - e2" := (BinOp MinusOp e1%E e2%E) : expr_scope.
 Notation "e1 * e2" := (BinOp MultOp e1%E e2%E) : expr_scope.
@@ -190,6 +213,10 @@ Notation "'let:m' x := e1 'in' e2" :=
 (* `assert e1 ;;; e2` errors out if e1 evaluates to false. *)
 Notation "'assert' e1 ;;; e2" := (if: e1%E then SOME e2%E else NONE)%E
   (at level 200, e1, e2 at level 200) : expr_scope.
+
+Notation "'while' e1 'do' e2 'end'" :=
+  ((rec: "loop" <> := (if: e1 then e2 ;; "loop" #() else #())) #())%E
+  (e1, e2 at level 200) : expr_scope.
 
 (* Shortcut for recursive definitions *)
 Notation "'letrec:' f x := e1 'in' e2" :=

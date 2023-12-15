@@ -4,7 +4,7 @@ Set Default Proof Using "Type*".
 (* Prophecy variables are unsound with up-to-bad reasoning *)
 
 Module counter_example.
-  Context `{!clutchGS Σ}.
+  Context `{!ub_clutchGS Σ}.
 
   Axiom NewProph : val.
   Axiom ResolveProph : val.
@@ -28,7 +28,7 @@ Module counter_example.
 
   Definition bad : expr :=
     let: "p" := NewProph #() in
-    let: "x" := (rand #99 from #()) in
+    let: "x" := (rand #99) in
     (ResolveProph "p" "x").
 
   Lemma falso :
