@@ -1,5 +1,9 @@
 From iris.proofmode Require Import base proofmode.
 From iris.bi Require Export weakestpre fixpoint big_op.
+From Coquelicot Require Import Series Lim_seq Rbar.
+From stdpp Require Export countable.
+From clutch.prelude Require Import base Coquelicot_ext.
+
 From iris.base_logic.lib Require Import ghost_map invariants fancy_updates.
 From iris.algebra Require Import excl.
 From iris.prelude Require Import options.
@@ -10,6 +14,7 @@ From clutch.common Require Export language.
 From clutch.ub_logic Require Import error_credits ub_weakestpre primitive_laws.
 From clutch.prob Require Import distribution.
 Import uPred.
+
 
 Section adequacy.
   Context `{!ub_clutchGS Σ}.
@@ -188,6 +193,7 @@ Definition ub_clutchΣ : gFunctors :=
 Global Instance subG_ub_clutchGPreS {Σ} : subG ub_clutchΣ Σ → ub_clutchGpreS Σ.
 Proof. solve_inG. Qed.
 
+
 Theorem wp_union_bound Σ `{ub_clutchGpreS Σ} (e : expr) (σ : state) n (ε : nonnegreal) φ :
   (∀ `{ub_clutchGS Σ}, ⊢ € ε -∗ WP e {{ v, ⌜φ v⌝ }}) →
   ub_lift (exec n (e, σ)) φ ε.
@@ -215,6 +221,7 @@ Proof.
   apply Hn; auto.
 Qed.
 
+
 Theorem wp_union_bound_lim Σ `{ub_clutchGpreS Σ} (e : expr) (σ : state) (ε : nonnegreal) φ :
   (∀ `{ub_clutchGS Σ}, ⊢ € ε -∗ WP e {{ v, ⌜φ v⌝ }}) →
   ub_lift (lim_exec (e, σ)) φ ε.
@@ -224,3 +231,122 @@ Proof.
   intro n.
   apply (wp_union_bound Σ); auto.
 Qed.
+
+Theorem wp_union_bound_epsilon_lim Σ `{clutchGpreS Σ} (e : expr) (σ : state) (ε : nonnegreal) φ :
+  (∀ `{ub_clutchGS Σ} (ε':nonnegreal), ε<ε' -> ⊢ € ε' -∗ WP e {{ v, ⌜φ v⌝ }}) →
+  ub_lift (lim_exec_val (e, σ)) φ ε.
+Proof.
+  intros H'.
+  apply ub_lift_epsilon_limit.
+  { destruct ε. simpl. lra. }
+  intros ε0 H1.
+  assert (0<=ε0) as Hε0.
+  { trans ε; try lra. by destruct ε. }
+  replace ε0 with (nonneg (mknonnegreal ε0 Hε0)); last by simpl.
+  eapply wp_union_bound_lim; first done.
+  intros. iIntros "He".
+  iApply H'; try iFrame.
+  simpl. lra.
+Qed.
+  
+Lemma exec_ub_epsilon_limit `{ub_clutchGS Σ} (e : expr) σ Z (ε':nonnegreal):
+   (∀ ε : nonnegreal, ⌜ε > ε'⌝ -∗ exec_ub e σ Z ε) -∗ exec_ub e σ Z ε'.
+Proof.
+  rewrite /exec_ub /exec_ub'.
+  iIntros "H".
+  iApply least_fixpoint_unfold_2; [apply exec_coupl_pre_mono|].
+  (* iLöb does not work*)
+Abort.
+
+
+
+Section Experiment_exec_ub_no_chain.
+
+  Definition exec_ub_no_chain_case_1 `{!ub_clutchGS Σ} (Z : nonnegreal -> cfg -> iProp Σ) ε e σ :=
+    (∃ R (ε1 ε2 : nonnegreal), ⌜ (ε1 + ε2 <= ε)%R ⌝ ∗ ⌜ub_lift (prim_step e σ) R ε1⌝ ∗
+                                    ∀ ρ2, ⌜ R ρ2 ⌝ ={∅}=∗ Z ε2 ρ2 )%I.
+    
+  Definition exec_ub_no_chain_case_2 `{!ub_clutchGS Σ} (Z : nonnegreal -> cfg -> iProp Σ) ε e σ :=
+    (∃ R (ε1 : nonnegreal) (ε2 : cfg -> nonnegreal),
+        ⌜ exists r, forall ρ, (ε2 ρ <= r)%R ⌝ ∗
+                    ⌜ (ε1 + SeriesC (λ ρ, (prim_step e σ ρ) * ε2(ρ)) <= ε)%R ⌝ ∗
+                    ⌜ub_lift (prim_step e σ) R ε1⌝ ∗ ∀ ρ2, ⌜ R ρ2 ⌝ ={∅}=∗ Z (ε2 ρ2) ρ2 )%I.
+  
+  Definition exec_ub_no_chain `{!ub_clutchGS Σ} (Z : nonnegreal -> cfg → iProp Σ) :=
+    (λ (x : nonnegreal * cfg),
+       let '(ε, (e1, σ1)) := x in
+       (* [prim_step] *)
+       exec_ub_no_chain_case_1 Z ε e1 σ1 ∨
+         exec_ub_no_chain_case_2 Z ε e1 σ1)%I.
+
+  Lemma exec_ub_no_chain_grading_mono `{!ub_clutchGS Σ} (ε ε' : nonnegreal) Z c:
+    ⌜(ε <= ε')%R⌝ -∗ exec_ub_no_chain Z (ε, c) -∗ exec_ub_no_chain Z (ε', c).
+  Proof.
+    iIntros "%Hleq H_ub".
+    rewrite /exec_ub_no_chain.
+    destruct c as [e σ].
+    iDestruct "H_ub" as "[H_ub|H_ub]".
+    - iLeft.
+      iDestruct "H_ub" as "(%R & %ε1 & %ε2 & %Hε & %Hub & H)".
+      iExists R, ε1, ε2.
+      iSplitR.
+      { iPureIntro; lra. }
+      iSplitR.
+      { iPureIntro; by eapply UB_mon_grading. }
+      iFrame.
+    - iRight.
+      iDestruct "H_ub" as "(%R & %ε1 & %ε2 & [%r %Hr] & %H & %Hub & ?)".
+      iExists R, ε1, ε2.
+      iFrame.
+      iSplit; iPureIntro.
+      + eauto.
+      + split; [lra|done].
+  Qed.
+
+  Definition exec_ub_no_chain_split `{!ub_clutchGS Σ} (Z : nonnegreal -> cfg -> iProp Σ)(ε' : nonnegreal) c:
+   ⊢ ((∀ ε : nonnegreal, ⌜ε'<ε⌝ -∗ exec_ub_no_chain Z (ε, c)) -∗
+    let '(e1, σ1) := c in
+    (∀ ε : nonnegreal, ⌜ε'<ε⌝ -∗ exec_ub_no_chain_case_1 Z ε e1 σ1) ∨
+      (∀ ε : nonnegreal, ⌜ε'<ε⌝ -∗ exec_ub_no_chain_case_2 Z ε e1 σ1))%I.
+  Proof.
+    iStartProof.
+    iIntros "H".
+    destruct c as [e σ].
+    Abort.
+    
+End Experiment_exec_ub_no_chain.
+
+
+
+
+Lemma wp_epsilon_limit `{ub_clutchGS Σ} (e : expr) φ:
+   (∀ ε : nonnegreal, ⌜0<ε⌝ -∗ € ε -∗ WP e {{ v, ⌜φ v⌝}}) -∗
+  WP e {{v, ⌜φ v⌝}}.
+Proof.
+  iStartProof.
+  iLöb as "IH" forall (e).
+  iIntros "H".
+  iEval (rewrite ub_wp_unfold /ub_wp_pre).
+  case_match.
+  - iAssert (∀ ε : nonnegreal, ⌜0 < ε⌝ -∗ € ε ={⊤}=∗ ⌜φ v⌝)%I with "[H]" as "H".
+    { iIntros (ε) "% Hε".
+      iPoseProof ("H" $! ε H1 with "[$Hε]") as "H".
+      iEval (rewrite ub_wp_unfold /ub_wp_pre) in "H".
+      by iEval (rewrite H0) in "H".
+    }
+    admit.
+  - iAssert (∀ ε : nonnegreal, ⌜0 < ε⌝ -∗ € ε -∗
+                              ∀ (σ1 : language.state prob_lang) (ε : nonnegreal),
+              state_interp σ1 ∗ err_interp ε ={⊤,∅}=∗
+              ⌜reducible e σ1⌝ ∗
+              exec_ub e σ1
+                (λ (ε2 : nonnegreal) '(e2, σ2),
+                   ▷ (|={∅,⊤}=> state_interp σ2 ∗ err_interp ε2 ∗ WP e2 {{ v, ⌜φ v⌝ }})) ε)%I with "[H]"as "H".
+    { iIntros (ε) "% Hε".
+      iPoseProof ("H" $! ε H1 with "[$Hε]") as "H".
+      iEval (rewrite ub_wp_unfold /ub_wp_pre) in "H".
+      by rewrite H0.
+    }
+    iIntros (σ ε) "[Hs Hε]".
+    admit. 
+Admitted. 
