@@ -322,6 +322,29 @@ Proof.
   done.
 Qed.
 
+Lemma wp_1_err e E Φ :
+  to_val e = None -> (forall σ, reducible e σ) -> € nnreal_one ⊢ WP e @ E {{Φ}}.
+Proof.
+  iIntros (H1 H2) "He".
+  iApply wp_lift_step_fupd_exec_ub; first done.
+  iIntros (σ1 ε) "[Hσ Hε]".
+  iApply fupd_mask_intro; [set_solver|].
+  iIntros "Hclose'".
+  iSplitR; first done.
+  iDestruct (ec_supply_bound with "Hε He ") as %Hle.
+  iApply exec_ub_prim_step.
+  iExists (λ _, False), nnreal_one, nnreal_zero.
+  iSplitR.
+  { iPureIntro.
+    assert (nnreal_one + nnreal_zero = nnreal_one)%R as Heq; last by rewrite Heq.
+    simpl. lra. 
+  }
+  iSplitR.
+  { iPureIntro. unfold ub_lift. intros.
+    by epose proof prob_le_1 as K.
+  }
+  by iIntros (? Hfalse).
+Qed. 
 
 Lemma wp_rand_err_list_int (N : nat) (z : Z) (zs : list Z) E Φ :
   TCEq N (Z.to_nat z) →
